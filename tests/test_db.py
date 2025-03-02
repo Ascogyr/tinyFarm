@@ -23,6 +23,7 @@ def setup_db(db_conn):
             dernierAchat DATE
         );
     """)
+
     cur.execute("""
         CREATE TABLE Compte (
             idCompte INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -128,12 +129,28 @@ def setup_ferme(db_conn, setup_db):
 def setup_poule(db_conn, setup_ferme):
     """Donnée d'exemple pour la table Poule"""
     # Exemple pour insérer une unique donnée
+    pouleId = []
     cur = db_conn.cursor()
     cur.execute("""
                 INSERT INTO Poule (proprietaire, poids, age, sexe, nb_oeuf, dernier_repas, dernier_breuvage, dernier_lavage)
-                VALUES (?, 2.5, 5, 'F', 1, ?, ?, '2025-02-26') RETURNING idPoule
-            """, (setup_ferme[0], date.today(), date.today() - timedelta(days=1)))
-    pouleId = cur.fetchone()[0]
+                VALUES (?, 2.5, 5, 'F', 1, ?, ?, ?) RETURNING idPoule
+            """, (setup_ferme[0], date.today(), date.today() - timedelta(days=1), date.today()))
+    pouleId.append(cur.fetchone()[0])
+    cur.execute("""
+                INSERT INTO Poule (proprietaire, poids, age, sexe, nb_oeuf, dernier_repas, dernier_breuvage, dernier_lavage)
+                VALUES (?, 3, 7, 'M', 1, ?, ?, ?) RETURNING idPoule
+            """, (setup_ferme[0], date.today() - timedelta(days=1), date.today(), date.today() - timedelta(days=1)))
+    pouleId.append(cur.fetchone()[0])
+    cur.execute("""
+                INSERT INTO Poule (proprietaire, poids, age, sexe, nb_oeuf, dernier_repas, dernier_breuvage, dernier_lavage)
+                VALUES (?, 3, 2, 'U', 1, ?, ?, ?) RETURNING idPoule
+            """, (setup_ferme[1], date.today() - timedelta(days=1), date.today(), date.today() - timedelta(days=1)))
+    pouleId.append(cur.fetchone()[0])
+    cur.execute("""
+                INSERT INTO Poule (proprietaire, poids, age, sexe, nb_oeuf, dernier_repas, dernier_breuvage, dernier_lavage)
+                VALUES (?, 3, 1, 'U', 1, ?, ?, ?) RETURNING idPoule
+            """, (setup_ferme[0], date.today(), date.today(), date.today()))
+    pouleId.append(cur.fetchone()[0])
     db_conn.commit()
     cur.close()
     return pouleId
@@ -142,36 +159,41 @@ def setup_poule(db_conn, setup_ferme):
 def setup_vache(db_conn, setup_ferme):
     """Donnée d'exemple pour la table Vache"""
     # Exemple pour insérer une unique donnée
+    idOwner = []
     cur = db_conn.cursor()
     cur.execute("""
                 INSERT INTO Vache (proprietaire, poids, age, qt_lait, dernier_repas, dernier_breuvage, dernier_lavage)
-                VALUES (?, 1, 1, 0, ?, ?, ?)
+                VALUES (?, 1, 1, 0, ?, ?, ?) RETURNING proprietaire
             """, (setup_ferme[0], date.today(), date.today(), date.today()))
+    idOwner.append(cur.fetchone()[0])
     cur.execute("""
                 INSERT INTO Vache (proprietaire, poids, age, qt_lait, dernier_repas, dernier_breuvage, dernier_lavage)
-                VALUES (?, 100, 19, 8, ?, ?, ?)
+                VALUES (?, 100, 19, 8, ?, ?, ?) RETURNING proprietaire
             """, (setup_ferme[1], date.today(), date.today(), date.today()))
+    idOwner.append(cur.fetchone()[0])
     db_conn.commit()
     cur.close()
+    return idOwner
 
 @pytest.fixture
 def setup_clapier(db_conn, setup_ferme):
     """Donnée d'exemple pour la table Clapier"""
     # Exemple pour insérer une unique donnée
+    idOwner = []
     cur = db_conn.cursor()
     cur.execute("""
                 INSERT INTO Clapier (proprietaire, dernier_repas, dernier_breuvage, dernier_lavage, nb_bebe, nb_petit, nb_gros, nb_adulte_m, nb_adulte_f)
-                VALUES (?, ?, ?, ?, 20, 14, 6, 5, 25)
+                VALUES (?, ?, ?, ?, 20, 14, 6, 5, 25) RETURNING proprietaire
             """, (setup_ferme[0], date.today(), date.today() - timedelta(days=1),  date.today()))
+    idOwner.append(cur.fetchone()[0])
     cur.execute("""
                 INSERT INTO Clapier (proprietaire, dernier_repas, dernier_breuvage, dernier_lavage, nb_bebe, nb_petit, nb_gros, nb_adulte_m, nb_adulte_f)
-                VALUES (?, ?, ?, ?, 20, 20, 0, 0, 10)
+                VALUES (?, ?, ?, ?, 20, 20, 0, 0, 10) RETURNING proprietaire
             """, (setup_ferme[1], date.today(), date.today() - timedelta(days=1),  date.today()))
+    idOwner.append(cur.fetchone()[0])
     db_conn.commit()
     cur.close()
-
-
-
+    return idOwner
 
 
 def test_creation_ferme(db_conn, setup_db):
@@ -184,3 +206,48 @@ def test_creation_ferme(db_conn, setup_db):
 
     cur.close()
     assert result == ("Test", 1500, None, 12, None)
+
+def test_rajout_vache(db_conn, setup_vache):
+    
+    cur = db_conn.cursor()
+    cur.execute("SELECT poids, age, qt_lait, dernier_repas, dernier_breuvage, dernier_lavage FROM Vache WHERE proprietaire = ?;", (setup_vache[0],))
+    resultA = cur.fetchone()
+
+    cur.execute("SELECT poids, age, qt_lait, dernier_repas, dernier_breuvage, dernier_lavage FROM Vache WHERE proprietaire = ?;", (setup_vache[1],))
+    resultB = cur.fetchone()
+
+    cur.close()
+    assert resultA == (1, 1, 0, date.today().strftime('%Y-%m-%d'), date.today().strftime('%Y-%m-%d'), date.today().strftime('%Y-%m-%d')) and resultB == (100, 19, 8, date.today().strftime('%Y-%m-%d'), date.today().strftime('%Y-%m-%d'), date.today().strftime('%Y-%m-%d'))
+
+def test_rajout_clapier(db_conn, setup_clapier):
+
+    cur = db_conn.cursor()
+
+    cur.execute("SELECT dernier_repas, dernier_breuvage, dernier_lavage, nb_bebe, nb_petit, nb_gros, nb_adulte_m, nb_adulte_f FROM Clapier WHERE proprietaire = ?;", (setup_clapier[0],))
+    resultA = cur.fetchone()
+
+    cur.execute("SELECT dernier_repas, dernier_breuvage, dernier_lavage, nb_bebe, nb_petit, nb_gros, nb_adulte_m, nb_adulte_f FROM Clapier WHERE proprietaire = ?;", (setup_clapier[1],))
+    resultB = cur.fetchone()
+
+    cur.close()
+    assert resultA == (date.today().strftime('%Y-%m-%d'), (date.today() - timedelta(days=1)).strftime('%Y-%m-%d'), date.today().strftime('%Y-%m-%d'), 20, 14, 6, 5, 25) and resultB == (date.today().strftime('%Y-%m-%d'), (date.today() - timedelta(days=1)).strftime('%Y-%m-%d'), date.today().strftime('%Y-%m-%d'), 20, 20, 0, 0, 10)
+
+def test_rajout_poule(db_conn, setup_poule):
+    
+    cur = db_conn.cursor()
+    cur.execute("SELECT poids, age, sexe, nb_oeuf, dernier_repas, dernier_breuvage, dernier_lavage FROM Poule WHERE proprietaire = ?;", (setup_poule[0],))
+    resultA = cur.fetchone()
+
+    cur.execute("SELECT poids, age, sexe, nb_oeuf, dernier_repas, dernier_breuvage, dernier_lavage FROM Poule WHERE proprietaire = ?;", (setup_poule[0],))
+    resultB = cur.lastrowid
+
+    cur.execute("SELECT poids, age, sexe, nb_oeuf, dernier_repas, dernier_breuvage, dernier_lavage FROM Poule WHERE proprietaire = ?;", (setup_poule[1],))
+    resultC = cur.fetchone()
+
+    cur.execute("SELECT poids, age, sexe, nb_oeuf, dernier_repas, dernier_breuvage, dernier_lavage FROM Poule WHERE proprietaire = ?;", (setup_poule[1],))
+    resultD = cur.lastrowid
+
+    cur.close()
+
+    assert resultA == (2.5, 5, 'F', 1, date.today().strftime('%Y-%m-%d'), (date.today() - timedelta(days=1)).strftime('%Y-%m-%d'), date.today().strftime('%Y-%m-%d'))# and resultB == (3, 7, 'M', 1, (date.today() - timedelta(days=1)).strftime('%Y-%m-%d'), date.today().strftime('%Y-%m-%d'), (date.today() - timedelta(days=1)).strftime('%Y-%m-%d'))
+    
