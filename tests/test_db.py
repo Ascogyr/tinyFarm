@@ -2,6 +2,8 @@ import sqlite3
 import pytest
 from datetime import date, datetime, timedelta
 
+rn = datetime.today()
+
 @pytest.fixture
 def db_conn():
     """Créer une BDD SQLite dans la mémoire"""
@@ -195,6 +197,22 @@ def setup_clapier(db_conn, setup_ferme):
     cur.close()
     return idOwner
 
+@pytest.fixture
+def setup_compte(db_conn, setup_ferme):
+    """Donnéee d'exemple pour la table Compte"""
+    # Exemple pour insérer plusieurs données
+    nomCompte = ['Mageline', 'Henry']
+    ids = []
+
+    cur = db_conn.cursor()
+    cur.execute("INSERT INTO Compte (idFerme, pseudo, derniereConnexion) VALUES (?, ?, ?) RETURNING idCompte", (setup_ferme[0], nomCompte[0], rn))
+    ids.append(cur.fetchone()[0])
+    cur.execute("INSERT INTO Compte (idFerme, pseudo, derniereConnexion) VALUES (?, ?, ?) RETURNING idCompte", (setup_ferme[1], nomCompte[1], rn))
+    ids.append(cur.fetchone()[0])
+    db_conn.commit()
+    cur.close()
+    return ids
+
 
 def test_creation_ferme(db_conn, setup_db):
     cur = db_conn.cursor()
@@ -251,3 +269,13 @@ def test_rajout_poule(db_conn, setup_poule):
 
     assert resultA == (2.5, 5, 'F', 1, date.today().strftime('%Y-%m-%d'), (date.today() - timedelta(days=1)).strftime('%Y-%m-%d'), date.today().strftime('%Y-%m-%d'))# and resultB == (3, 7, 'M', 1, (date.today() - timedelta(days=1)).strftime('%Y-%m-%d'), date.today().strftime('%Y-%m-%d'), (date.today() - timedelta(days=1)).strftime('%Y-%m-%d'))
     
+def test_creation_ferme(db_conn, setup_compte, setup_ferme):
+    cur = db_conn.cursor()
+    cur.execute("SELECT idFerme, pseudo, derniereConnexion FROM Compte WHERE idCompte = ?;", (setup_compte[0],))
+    resultA = cur.fetchone()
+
+    cur.execute("SELECT idFerme, pseudo, derniereConnexion FROM Compte WHERE idCompte = ?;", (setup_compte[1],))
+    resultB = cur.fetchone()
+
+    cur.close()
+    assert resultA == (setup_ferme[0], "Mageline", rn.strftime('%Y-%m-%d %H:%M:%S.%f') ) and resultB == (setup_ferme[1], "Henry", rn.strftime('%Y-%m-%d %H:%M:%S.%f'))
